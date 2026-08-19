@@ -2,7 +2,7 @@
 // NeoFair — Join Membership Page
 // ================================================
 
-import { saveMember } from '../firebase.js';
+import { saveMember, isPhoneRegistered } from '../firebase.js';
 
 export function renderJoin() {
   const daysOptions = Array.from({length: 31}, (_, i) => {
@@ -10,9 +10,9 @@ export function renderJoin() {
     return `<option value="${d}">${i + 1}</option>`;
   }).join('');
 
-  const currentYear = new Date().getFullYear();
-  const yearsOptions = Array.from({length: 95}, (_, i) => {
-    const y = currentYear - 13 - i;
+  const startYear = 2020;
+  const yearsOptions = Array.from({length: 91}, (_, i) => {
+    const y = startYear - i;
     return `<option value="${y}">${y}</option>`;
   }).join('');
 
@@ -311,6 +311,21 @@ export function initJoinForm() {
     submitBtn.classList.add('loading');
 
     try {
+      // Check if mobile number is already registered
+      const phoneInput = document.getElementById('memberPhone').value.trim();
+      const isDuplicate = await isPhoneRegistered(phoneInput);
+
+      if (isDuplicate) {
+        setError('group-phone', 'err-phone', true);
+        const errEl = document.getElementById('err-phone');
+        if (errEl) errEl.textContent = 'This mobile number is already registered for Membership.';
+        if (serverError) {
+          serverError.textContent = `Mobile number ${phoneInput} is already registered!`;
+          serverError.style.display = 'block';
+        }
+        return;
+      }
+
       await saveMember(memberData);
       
       // Update welcome card with registered name and unique Membership ID

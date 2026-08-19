@@ -4,7 +4,7 @@
 // ================================================================
 
 import { loginAdmin, logoutAdmin, isAdminAuthenticated, changeAdminCredentials, checkLockoutStatus, getRemainingAttempts, getStoredAdminId, MAX_ATTEMPTS } from '../utils/auth.js';
-import { getMembers, saveMember, updateMember, deleteMember, clearAllMembers } from '../firebase.js';
+import { getMembers, saveMember, updateMember, deleteMember, clearAllMembers, isPhoneRegistered } from '../firebase.js';
 import { encryptData } from '../utils/crypto.js';
 
 let currentMembers = [];
@@ -875,6 +875,12 @@ function initModalListeners() {
       const tier = document.getElementById('addTier')?.value || 'Neon';
 
       if (!name || !phone || !dob) return;
+
+      const isDuplicate = await isPhoneRegistered(phone);
+      if (isDuplicate) {
+        alert(`Mobile number ${phone} is already registered!`);
+        return;
+      }
 
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const newMember = {

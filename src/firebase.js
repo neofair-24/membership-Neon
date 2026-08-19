@@ -175,6 +175,19 @@ export async function deleteMember(memberId) {
 }
 
 /**
+ * Check if a mobile phone number is already registered
+ * @param {string} phone 
+ * @returns {Promise<boolean>}
+ */
+export async function isPhoneRegistered(phone) {
+  const cleanPhone = (phone || '').trim();
+  if (!cleanPhone) return false;
+
+  const members = await getMembers();
+  return members.some(m => (m.phoneNumber || '').trim() === cleanPhone);
+}
+
+/**
  * Delete all stored members (Admin function)
  */
 export async function clearAllMembers() {
