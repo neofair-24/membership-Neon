@@ -4,12 +4,14 @@
 // ================================================================
 
 import { loginAdmin, logoutAdmin, isAdminAuthenticated, changeAdminCredentials, checkLockoutStatus, getRemainingAttempts, getStoredAdminId, MAX_ATTEMPTS } from '../utils/auth.js';
-import { getMembers, saveMember, updateMember, deleteMember, clearAllMembers, isPhoneRegistered, subscribeMembers } from '../firebase.js';
+import { getMembers, saveMember, updateMember, deleteMember, deleteMultipleMembers, clearAllMembers, isPhoneRegistered, subscribeMembers } from '../firebase.js';
 import { encryptData } from '../utils/crypto.js';
 
 let currentMembers = [];
 let filteredMembers = [];
+let selectedMemberIds = new Set();
 let lockoutTimerInterval = null;
+let bulkDeleteMode = false;
 
 export function renderAdmin() {
   const isAuth = isAdminAuthenticated();
@@ -126,7 +128,7 @@ function renderDashboardScreen() {
             <div>
               <h1 class="admin-title">Member Database & Management</h1>
               <p class="admin-subtitle">
-                <span class="status-dot"></span> Admin: <strong style="color:var(--color-gold-light);margin:0 4px">${escapeHtml(currentAdminId)}</strong> &bull; Firebase Storage Active
+                <span class="status-dot"></span> Admin: <strong style="color:var(--color-gold-light);margin:0 4px">${escapeHtml(currentAdminId)}</strong> &bull; Cloud Firestore Live Sync
               </p>
             </div>
           </div>
@@ -235,7 +237,12 @@ function renderDashboardScreen() {
         <!-- Data Table Container -->
         <div class="admin-table-wrapper glass-panel">
           <div class="table-meta-bar">
-            <span id="showingCountText">Showing 0 member records</span>
+            <div style="display:flex;align-items:center;gap:1rem;">
+              <span id="showingCountText">Showing 0 member records</span>
+              <button id="deleteSelectedBtn" class="btn" style="display:none;background:#ef4444;color:#fff;border:1px solid #dc2626;font-size:0.82rem;padding:5px 14px;border-radius:var(--radius-sm);font-weight:600;">
+                🗑️ Delete Selected (<span id="selectedCountBadge">0</span>)
+              </button>
+            </div>
             <button id="refreshDataBtn" class="btn-icon" title="Refresh Data">🔄 Refresh</button>
           </div>
 
@@ -243,6 +250,9 @@ function renderDashboardScreen() {
             <table class="admin-table">
               <thead>
                 <tr>
+                  <th style="width:40px;text-align:center;">
+                    <input type="checkbox" id="selectAllCheckbox" title="Select All Rows" style="cursor:pointer;width:16px;height:16px;accent-color:var(--color-gold);" />
+                  </th>
                   <th>#</th>
                   <th>Member ID</th>
                   <th>Full Name</th>
@@ -257,7 +267,7 @@ function renderDashboardScreen() {
               </thead>
               <tbody id="membersTableBody">
                 <tr>
-                  <td colspan="10" class="table-loading">
+                  <td colspan="11" class="table-loading">
                     <span class="btn-loader dark"></span> Loading registered member records...
                   </td>
                 </tr>
@@ -282,7 +292,7 @@ function renderDashboardScreen() {
             <input type="text" id="addName" class="form-input" required placeholder="e.g. Ananya Patel" />
           </div>
           <div class="form-group">
-            <label class="form-label">10-Digit Mobile Phone *</label>
+            <label class="form-label">10-Digit Mobile Phone (starts with 6,7,8,9) *</label>
             <input type="tel" id="addPhone" class="form-input" maxlength="10" required placeholder="e.g. 9876543210" />
           </div>
           <div class="form-group">
@@ -326,7 +336,7 @@ function renderDashboardScreen() {
             <input type="text" id="editName" class="form-input" required />
           </div>
           <div class="form-group">
-            <label class="form-label">Mobile Phone *</label>
+            <label class="form-label">Mobile Phone (starts with 6,7,8,9) *</label>
             <input type="tel" id="editPhone" class="form-input" maxlength="10" required />
           </div>
           <div class="form-group">
@@ -404,14 +414,14 @@ function renderDashboardScreen() {
     <div id="deleteConfirmModal" class="admin-modal-overlay" style="display:none;">
       <div class="admin-modal-content glass-panel" style="max-width:440px;text-align:center;">
         <div style="font-size:2.8rem;margin-bottom:0.75rem;">🗑️</div>
-        <h3 style="color:var(--color-gold-light);margin-bottom:0.5rem;font-size:1.3rem;">Delete Member Record?</h3>
+        <h3 style="color:var(--color-gold-light);margin-bottom:0.5rem;font-size:1.3rem;" id="deleteConfirmModalTitle">Delete Member Record?</h3>
         <p style="color:var(--color-text-muted);font-size:0.95rem;line-height:1.5;margin-bottom:1.5rem;" id="deleteConfirmPromptText">
           Are you sure you want to permanently delete this member record from Firebase Firestore?
         </p>
         <input type="hidden" id="deleteTargetId" />
         <div class="modal-footer" style="justify-content:center;gap:1rem;">
           <button type="button" class="btn btn-outline" data-close="deleteConfirmModal">Cancel</button>
-          <button type="button" id="confirmDeleteBtn" class="btn" style="background:#ef4444;color:#fff;border:1px solid #dc2626;">
+          <button type="button" id="confirmDeleteBtn" class="btn" style="background:#ef4444;color:#fff;border:1px solid #dc2626;font-weight:600;">
             Yes, Delete Permanently
           </button>
         </div>
@@ -448,102 +458,115 @@ function initLoginEvents() {
   const idInput   = document.getElementById('adminId');
   const passInput = document.getElementById('adminPassword');
   const toggleBtn = document.getElementById('togglePasswordBtn');
-  const errorMsg  = document.getElementById('loginErrorMessage');
-  const submitBtn = document.getElementById('adminLoginBtn');
 
-  // Start lockout countdown update if currently locked
-  startLockoutCountdownMonitor();
-
-  // Toggle Password Mask
   if (toggleBtn && passInput) {
     toggleBtn.addEventListener('click', () => {
-      const type = passInput.getAttribute('type') === 'password' ? 'text' : 'password';
-      passInput.setAttribute('type', type);
-      toggleBtn.textContent = type === 'password' ? '👁️' : '🙈';
+      const isPass = passInput.type === 'password';
+      passInput.type = isPass ? 'text' : 'password';
+      toggleBtn.textContent = isPass ? '🔒' : '👁️';
     });
   }
 
-  // Handle Login Submit
+  // Auto-focus ID input
+  if (idInput) {
+    setTimeout(() => idInput.focus(), 100);
+  }
+
+  // Check lockout on render
+  updateLockoutUI();
+
   if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      errorMsg.style.display = 'none';
 
-      const adminId  = idInput.value.trim();
-      const password = passInput.value.trim();
+      const adminIdVal  = (idInput ? idInput.value : '').trim();
+      const passwordVal = (passInput ? passInput.value : '');
 
-      if (!adminId || !password) {
-        showLoginError('Please enter both Admin ID and Password.');
-        return;
-      }
+      if (!adminIdVal || !passwordVal) return;
 
-      submitBtn.disabled = true;
-      submitBtn.classList.add('loading');
+      const submitBtn = document.getElementById('adminLoginBtn');
+      const loader = submitBtn ? submitBtn.querySelector('.btn-loader') : null;
+      const errEl = document.getElementById('loginErrorMessage');
+
+      if (submitBtn) submitBtn.disabled = true;
+      if (loader) loader.style.display = 'inline-block';
+      if (errEl) errEl.style.display = 'none';
 
       try {
-        const result = await loginAdmin(adminId, password);
+        const result = await loginAdmin(adminIdVal, passwordVal);
 
         if (result.success) {
-          // Re-render router page to Dashboard
+          // Switch view to Dashboard
           const content = document.getElementById('page-content');
           content.innerHTML = renderDashboardScreen();
-          initDashboardEvents();
+          await initDashboardEvents();
         } else {
-          showLoginError(result.message);
+          // Show error and remaining attempts
+          if (errEl) {
+            errEl.textContent = result.message;
+            errEl.style.display = 'block';
+          }
+
+          const badge = document.getElementById('attemptsBadge');
+          if (badge && result.remainingAttempts !== undefined) {
+            badge.textContent = `${result.remainingAttempts} of ${MAX_ATTEMPTS} attempts remaining`;
+          }
+
           if (result.lockoutSeconds) {
-            startLockoutCountdownMonitor();
-          } else {
-            const badge = document.getElementById('attemptsBadge');
-            if (badge && result.remainingAttempts !== undefined) {
-              badge.textContent = `${result.remainingAttempts} of ${MAX_ATTEMPTS} attempts remaining`;
-            }
+            updateLockoutUI();
           }
         }
-      } catch (err) {
-        showLoginError('Authentication error occurred.');
       } finally {
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('loading');
+        if (submitBtn) submitBtn.disabled = false;
+        if (loader) loader.style.display = 'none';
       }
     });
   }
 }
 
-function showLoginError(msg) {
-  const errorMsg = document.getElementById('loginErrorMessage');
-  if (errorMsg) {
-    errorMsg.textContent = msg;
-    errorMsg.style.display = 'block';
+function updateLockoutUI() {
+  const lockout = checkLockoutStatus();
+  const banner  = document.getElementById('lockoutBanner');
+  const countEl = document.getElementById('lockoutCountdown');
+  const btn     = document.getElementById('adminLoginBtn');
+  const idInput = document.getElementById('adminId');
+  const passIn  = document.getElementById('adminPassword');
+
+  if (lockoutTimerInterval) {
+    clearInterval(lockoutTimerInterval);
+    lockoutTimerInterval = null;
   }
-}
 
-function startLockoutCountdownMonitor() {
-  if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
+  if (lockout.isLocked) {
+    if (banner) banner.style.display = 'flex';
+    if (btn) btn.disabled = true;
+    if (idInput) idInput.disabled = true;
+    if (passIn) passIn.disabled = true;
 
-  lockoutTimerInterval = setInterval(() => {
-    const lockout = checkLockoutStatus();
-    const banner = document.getElementById('lockoutBanner');
-    const countEl = document.getElementById('lockoutCountdown');
-    const idInput = document.getElementById('adminId');
-    const passInput = document.getElementById('adminPassword');
-    const submitBtn = document.getElementById('adminLoginBtn');
+    let seconds = lockout.secondsRemaining;
+    if (countEl) countEl.textContent = seconds.toString();
 
-    if (lockout.isLocked) {
-      if (banner) banner.style.display = 'flex';
-      if (countEl) countEl.textContent = lockout.secondsRemaining.toString();
-      if (idInput) idInput.disabled = true;
-      if (passInput) passInput.disabled = true;
-      if (submitBtn) submitBtn.disabled = true;
-    } else {
-      if (banner) banner.style.display = 'none';
-      if (idInput) idInput.disabled = false;
-      if (passInput) passInput.disabled = false;
-      if (submitBtn) submitBtn.disabled = false;
-      const badge = document.getElementById('attemptsBadge');
-      if (badge) badge.textContent = `${MAX_ATTEMPTS} of ${MAX_ATTEMPTS} attempts remaining`;
-      clearInterval(lockoutTimerInterval);
-    }
-  }, 1000);
+    lockoutTimerInterval = setInterval(() => {
+      seconds--;
+      if (countEl) countEl.textContent = seconds.toString();
+
+      if (seconds <= 0) {
+        clearInterval(lockoutTimerInterval);
+        lockoutTimerInterval = null;
+        if (banner) banner.style.display = 'none';
+        if (btn) btn.disabled = false;
+        if (idInput) idInput.disabled = false;
+        if (passIn) passIn.disabled = false;
+        const badge = document.getElementById('attemptsBadge');
+        if (badge) badge.textContent = `${MAX_ATTEMPTS} of ${MAX_ATTEMPTS} attempts remaining`;
+      }
+    }, 1000);
+  } else {
+    if (banner) banner.style.display = 'none';
+    if (btn) btn.disabled = false;
+    if (idInput) idInput.disabled = false;
+    if (passIn) passIn.disabled = false;
+  }
 }
 
 /**
@@ -570,7 +593,31 @@ async function initDashboardEvents() {
   const refreshBtn = document.getElementById('refreshDataBtn');
   if (refreshBtn) refreshBtn.addEventListener('click', loadMemberData);
 
-  // 3. Export Action Buttons
+  // 3. Select All & Bulk Delete Button
+  const selectAllChk = document.getElementById('selectAllCheckbox');
+  if (selectAllChk) {
+    selectAllChk.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      document.querySelectorAll('.member-select-chk').forEach(chk => {
+        chk.checked = isChecked;
+        const id = chk.getAttribute('data-chk-id');
+        if (isChecked) selectedMemberIds.add(id);
+        else selectedMemberIds.delete(id);
+      });
+      updateSelectedCountUI();
+    });
+  }
+
+  const deleteSelBtn = document.getElementById('deleteSelectedBtn');
+  if (deleteSelBtn) {
+    deleteSelBtn.addEventListener('click', () => {
+      if (selectedMemberIds.size === 0) return;
+      bulkDeleteMode = true;
+      openDeleteConfirmModal('BULK', null, selectedMemberIds.size);
+    });
+  }
+
+  // 4. Export Action Buttons
   const csvBtn = document.getElementById('downloadCsvBtn');
   const jsonBtn = document.getElementById('downloadJsonBtn');
   const encBtn = document.getElementById('downloadEncryptedBtn');
@@ -581,7 +628,7 @@ async function initDashboardEvents() {
   if (encBtn) encBtn.addEventListener('click', exportEncrypted);
   if (printBtn) printBtn.addEventListener('click', triggerPrint);
 
-  // 4. Header Actions (Logout, Add Member, Security Settings)
+  // 5. Header Actions (Logout, Add Member, Security Settings)
   const logoutBtn = document.getElementById('adminLogoutBtn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
@@ -596,16 +643,30 @@ async function initDashboardEvents() {
   initModalListeners();
 }
 
+function updateSelectedCountUI() {
+  const badge = document.getElementById('selectedCountBadge');
+  const btn = document.getElementById('deleteSelectedBtn');
+  const count = selectedMemberIds.size;
+
+  if (badge) badge.textContent = count.toString();
+  if (btn) btn.style.display = count > 0 ? 'inline-flex' : 'none';
+
+  const selectAllChk = document.getElementById('selectAllCheckbox');
+  if (selectAllChk && filteredMembers.length > 0) {
+    selectAllChk.checked = count > 0 && count === filteredMembers.length;
+  }
+}
+
 /**
  * Load member records from Firestore & LocalStorage
  */
 async function loadMemberData() {
   const tbody = document.getElementById('membersTableBody');
-  if (tbody) {
+  if (tbody && currentMembers.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="10" class="table-loading">
-          <span class="btn-loader dark"></span> Fetching member records...
+        <td colspan="11" class="table-loading">
+          <span class="btn-loader dark"></span> Fetching member records from Firebase...
         </td>
       </tr>
     `;
@@ -615,11 +676,16 @@ async function loadMemberData() {
     currentMembers = await getMembers();
     updateMetricsCards(currentMembers);
     filterAndRenderTable();
-  } catch (e) {
+  } catch (err) {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="10" class="table-empty">Error loading member records.</td>
+          <td colspan="11" class="table-empty">
+            <div class="empty-state">
+              <span class="empty-icon">⚠️</span>
+              <p>Unable to load member data. Please check connection.</p>
+            </div>
+          </td>
         </tr>
       `;
     }
@@ -627,7 +693,7 @@ async function loadMemberData() {
 }
 
 /**
- * Filter & Sort Members, then render Table Rows
+ * Filter & Sort Member Records
  */
 function filterAndRenderTable() {
   const searchVal = (document.getElementById('memberSearchInput')?.value || '').toLowerCase().trim();
@@ -635,16 +701,21 @@ function filterAndRenderTable() {
   const sortVal   = document.getElementById('sortBySelect')?.value || 'NEWEST';
 
   filteredMembers = currentMembers.filter(m => {
-    const matchSearch =
-      m.fullName.toLowerCase().includes(searchVal) ||
-      m.phoneNumber.toLowerCase().includes(searchVal) ||
-      m.membershipId.toLowerCase().includes(searchVal);
+    // Gender Filter
+    if (genderVal !== 'ALL' && m.gender !== genderVal) return false;
 
-    const matchGender = genderVal === 'ALL' || m.gender === genderVal;
+    // Search Query (Name, Phone, MemberID)
+    if (searchVal) {
+      const matchName  = (m.fullName || '').toLowerCase().includes(searchVal);
+      const matchPhone = (m.phoneNumber || '').includes(searchVal);
+      const matchId    = (m.membershipId || '').toLowerCase().includes(searchVal);
+      if (!matchName && !matchPhone && !matchId) return false;
+    }
 
-    return matchSearch && matchGender;
+    return true;
   });
 
+  // Sorting
   if (sortVal === 'NEWEST') {
     filteredMembers.sort((a, b) => new Date(b.registrationDate || b.joinedAt) - new Date(a.registrationDate || a.joinedAt));
   } else if (sortVal === 'OLDEST') {
@@ -659,6 +730,7 @@ function filterAndRenderTable() {
   }
 
   renderTableRows(filteredMembers);
+  updateSelectedCountUI();
 }
 
 /**
@@ -671,7 +743,7 @@ function renderTableRows(members) {
   if (members.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="10" class="table-empty">
+        <td colspan="11" class="table-empty">
           <div class="empty-state">
             <span class="empty-icon">📂</span>
             <p>No member records found matching your filters.</p>
@@ -685,10 +757,16 @@ function renderTableRows(members) {
   tbody.innerHTML = members.map((m, index) => {
     const formattedDate = formatDate(m.registrationDate || m.joinedAt);
     const statusClass = m.status === 'active' ? 'badge-active' : 'badge-inactive';
+    const memberKey = m.firestoreId || m.id || m.membershipId;
+    const isChecked = selectedMemberIds.has(memberKey);
+
     return /* html */`
-      <tr data-id="${m.id || m.membershipId}">
+      <tr data-id="${memberKey}">
+        <td style="text-align:center;">
+          <input type="checkbox" class="member-select-chk" data-chk-id="${memberKey}" ${isChecked ? 'checked' : ''} style="cursor:pointer;width:16px;height:16px;accent-color:var(--color-gold);" />
+        </td>
         <td class="col-num">${index + 1}</td>
-        <td><code class="member-id-tag">${m.membershipId}</code></td>
+        <td><code class="member-id-tag">${escapeHtml(m.membershipId)}</code></td>
         <td><strong class="member-name">${escapeHtml(m.fullName)}</strong></td>
         <td><a href="tel:${m.phoneNumber}" class="phone-link">📱 ${escapeHtml(m.phoneNumber)}</a></td>
         <td>${escapeHtml(m.dateOfBirth)}</td>
@@ -697,10 +775,10 @@ function renderTableRows(members) {
         <td><span class="badge ${statusClass}">${escapeHtml(m.status || 'active')}</span></td>
         <td class="col-date">${formattedDate}</td>
         <td class="col-actions">
-          <button class="btn-table-edit" data-edit-id="${m.id || m.membershipId}" title="Edit Record">
+          <button class="btn-table-edit" data-edit-id="${memberKey}" title="Edit Record">
             ✏️
           </button>
-          <button class="btn-table-del" data-del-id="${m.id || m.membershipId}" title="Delete Record">
+          <button class="btn-table-del" data-del-id="${memberKey}" title="Delete Record">
             🗑️
           </button>
         </td>
@@ -708,11 +786,21 @@ function renderTableRows(members) {
     `;
   }).join('');
 
+  // Attach Row Checkbox listeners
+  tbody.querySelectorAll('.member-select-chk').forEach(chk => {
+    chk.addEventListener('change', (e) => {
+      const id = e.currentTarget.getAttribute('data-chk-id');
+      if (e.currentTarget.checked) selectedMemberIds.add(id);
+      else selectedMemberIds.delete(id);
+      updateSelectedCountUI();
+    });
+  });
+
   // Attach Edit buttons listeners
   tbody.querySelectorAll('[data-edit-id]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const editId = e.currentTarget.getAttribute('data-edit-id');
-      const targetMember = currentMembers.find(m => m.id === editId || m.membershipId === editId);
+      const targetMember = currentMembers.find(m => m.id === editId || m.firestoreId === editId || m.membershipId === editId);
       if (targetMember) {
         openEditMemberModal(targetMember);
       }
@@ -723,19 +811,31 @@ function renderTableRows(members) {
   tbody.querySelectorAll('[data-del-id]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const delId = e.currentTarget.getAttribute('data-del-id');
-      const targetMember = currentMembers.find(m => m.id === delId || m.membershipId === delId);
-      openDeleteConfirmModal(delId, targetMember?.fullName || delId);
+      const targetMember = currentMembers.find(m => m.id === delId || m.firestoreId === delId || m.membershipId === delId);
+      bulkDeleteMode = false;
+      openDeleteConfirmModal(delId, targetMember);
     });
   });
 }
 
-function openDeleteConfirmModal(id, name) {
+function openDeleteConfirmModal(id, targetMember, bulkCount = 0) {
   const modal = document.getElementById('deleteConfirmModal');
   const input = document.getElementById('deleteTargetId');
+  const title = document.getElementById('deleteConfirmModalTitle');
   const prompt = document.getElementById('deleteConfirmPromptText');
   if (!modal) return;
-  if (input) input.value = id;
-  if (prompt) prompt.textContent = `Are you sure you want to permanently delete member record for "${name}" from Firebase Firestore?`;
+
+  if (bulkDeleteMode) {
+    if (input) input.value = 'BULK';
+    if (title) title.textContent = `Delete ${bulkCount} Selected Members?`;
+    if (prompt) prompt.textContent = `Are you sure you want to permanently delete ${bulkCount} selected member records from Firebase Firestore? This cannot be undone.`;
+  } else {
+    if (input) input.value = id;
+    const name = targetMember?.fullName || id;
+    if (title) title.textContent = 'Delete Member Record?';
+    if (prompt) prompt.textContent = `Are you sure you want to permanently delete member record for "${name}" from Firebase Firestore?`;
+  }
+
   modal.style.display = 'flex';
 }
 
@@ -743,7 +843,7 @@ function openEditMemberModal(member) {
   const modal = document.getElementById('editMemberModal');
   if (!modal) return;
 
-  document.getElementById('editMemberId').value = member.id || member.membershipId;
+  document.getElementById('editMemberId').value = member.firestoreId || member.id || member.membershipId;
   document.getElementById('editName').value = member.fullName || '';
   document.getElementById('editPhone').value = member.phoneNumber || '';
   document.getElementById('editDob').value = member.dateOfBirth || '';
@@ -755,12 +855,27 @@ function openEditMemberModal(member) {
 }
 
 async function handleDeleteMember(id) {
-  await deleteMember(id);
-  // Optimistically remove from local state immediately
-  currentMembers = currentMembers.filter(m => m.id !== id && m.membershipId !== id);
+  const targetMember = currentMembers.find(m => m.id === id || m.firestoreId === id || m.membershipId === id) || id;
+  await deleteMember(targetMember);
+
+  currentMembers = currentMembers.filter(m => m.id !== id && m.firestoreId !== id && m.membershipId !== id);
+  selectedMemberIds.delete(id);
   updateMetricsCards(currentMembers);
   filterAndRenderTable();
-  await loadMemberData();
+}
+
+async function handleDeleteSelected() {
+  const targets = Array.from(selectedMemberIds).map(id => 
+    currentMembers.find(m => m.id === id || m.firestoreId === id || m.membershipId === id) || id
+  );
+
+  await deleteMultipleMembers(targets);
+
+  const idSet = new Set(selectedMemberIds);
+  currentMembers = currentMembers.filter(m => !idSet.has(m.id) && !idSet.has(m.firestoreId) && !idSet.has(m.membershipId));
+  selectedMemberIds.clear();
+  updateMetricsCards(currentMembers);
+  filterAndRenderTable();
 }
 
 /**
@@ -792,23 +907,23 @@ function updateMetricsCards(members) {
  */
 function exportCSV() {
   if (filteredMembers.length === 0) {
-    alert('No member data available to export.');
+    alert('No member records available to export.');
     return;
   }
 
-  const headers = ['Membership ID', 'Full Name', 'Mobile Number', 'Date of Birth', 'Gender', 'Membership Tier', 'Status', 'Registration Date'];
+  const headers = ['Member ID', 'Full Name', 'Phone Number', 'Date of Birth', 'Gender', 'Membership Tier', 'Account Status', 'Registration Date'];
   const rows = filteredMembers.map(m => [
-    `"${(m.membershipId || '').replace(/"/g, '""')}"`,
+    `"${m.membershipId || ''}"`,
     `"${(m.fullName || '').replace(/"/g, '""')}"`,
-    `"${(m.phoneNumber || '').replace(/"/g, '""')}"`,
-    `"${(m.dateOfBirth || '').replace(/"/g, '""')}"`,
-    `"${(m.gender || '').replace(/"/g, '""')}"`,
-    `"${(m.membershipTier || 'Neon Silver').replace(/"/g, '""')}"`,
-    `"${(m.status || 'active').replace(/"/g, '""')}"`,
-    `"${(m.registrationDate || '').replace(/"/g, '""')}"`
+    `"${m.phoneNumber || ''}"`,
+    `"${m.dateOfBirth || ''}"`,
+    `"${m.gender || ''}"`,
+    `"${m.membershipTier || 'Neon'}"`,
+    `"${m.status || 'active'}"`,
+    `"${m.registrationDate || m.joinedAt || ''}"`
   ]);
 
-  const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   triggerFileDownload(blob, `neofair_members_${getFormattedDateStamp()}.csv`);
 }
@@ -818,25 +933,25 @@ function exportCSV() {
  */
 function exportJSON() {
   if (filteredMembers.length === 0) {
-    alert('No member data available to export.');
+    alert('No member records available to export.');
     return;
   }
 
-  const jsonStr = JSON.stringify(filteredMembers, null, 2);
-  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const jsonString = JSON.stringify(filteredMembers, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json' });
   triggerFileDownload(blob, `neofair_members_${getFormattedDateStamp()}.json`);
 }
 
 /**
- * Export Member Data as AES-256-GCM Encrypted Backup File
+ * Export Encrypted Backup (.enc)
  */
 async function exportEncrypted() {
   if (filteredMembers.length === 0) {
-    alert('No member data available to export.');
+    alert('No member records available to export.');
     return;
   }
 
-  const secretKey = prompt('Enter a password to encrypt this backup file:');
+  const secretKey = prompt('Enter an encryption password to secure this backup:');
   if (!secretKey) return;
 
   try {
@@ -876,16 +991,19 @@ function triggerFileDownload(blob, fileName) {
  * Modals Handler (Add Member, Edit Member, & Security Settings)
  */
 function initModalListeners() {
-  // Handle Delete Confirmation
+  // Handle Delete Confirmation (Single & Bulk)
   const confirmDelBtn = document.getElementById('confirmDeleteBtn');
   if (confirmDelBtn) {
     confirmDelBtn.addEventListener('click', async () => {
       const targetId = document.getElementById('deleteTargetId')?.value;
-      if (targetId) {
+      if (bulkDeleteMode || targetId === 'BULK') {
+        await handleDeleteSelected();
+      } else if (targetId) {
         await handleDeleteMember(targetId);
       }
       const modal = document.getElementById('deleteConfirmModal');
       if (modal) modal.style.display = 'none';
+      bulkDeleteMode = false;
     });
   }
 
@@ -909,6 +1027,7 @@ function initModalListeners() {
       const modalId = e.currentTarget.getAttribute('data-close');
       const modal = document.getElementById(modalId);
       if (modal) modal.style.display = 'none';
+      bulkDeleteMode = false;
     });
   });
 
@@ -987,14 +1106,14 @@ function initModalListeners() {
   if (changePassForm) {
     changePassForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (passErr) passErr.style.display = 'none';
+      const newAdminIdVal = document.getElementById('newAdminIdInput').value.trim();
+      const currPassVal   = document.getElementById('currPass').value;
+      const newPassVal    = document.getElementById('newPass').value;
+      const confirmPassVal= document.getElementById('confirmPass').value;
 
-      const newAdminId = document.getElementById('newAdminIdInput').value.trim();
-      const currPass   = document.getElementById('currPass').value;
-      const newPass    = document.getElementById('newPass').value;
-      const confPass   = document.getElementById('confirmPass').value;
+      if (!currPassVal) return;
 
-      if (newPass && newPass !== confPass) {
+      if (newPassVal && newPassVal !== confirmPassVal) {
         if (passErr) {
           passErr.textContent = 'New passwords do not match!';
           passErr.style.display = 'block';
@@ -1002,15 +1121,16 @@ function initModalListeners() {
         return;
       }
 
-      const res = await changeAdminCredentials(currPass, newAdminId, newPass);
+      const res = await changeAdminCredentials(currPassVal, newAdminIdVal, newPassVal);
       if (res.success) {
-        alert('Admin security credentials updated successfully! Please log in again.');
+        alert(res.message);
         document.getElementById('changePasswordModal').style.display = 'none';
         changePassForm.reset();
-        logoutAdmin();
-        const content = document.getElementById('page-content');
-        content.innerHTML = renderLoginScreen();
-        initLoginEvents();
+        // Update header username
+        const subtitleEl = document.querySelector('.admin-subtitle');
+        if (subtitleEl) {
+          subtitleEl.innerHTML = `<span class="status-dot"></span> Admin: <strong style="color:var(--color-gold-light);margin:0 4px">${escapeHtml(getStoredAdminId())}</strong> &bull; Cloud Firestore Live Sync`;
+        }
       } else {
         if (passErr) {
           passErr.textContent = res.message;
@@ -1021,25 +1141,28 @@ function initModalListeners() {
   }
 }
 
-// Helpers
 function formatDate(isoStr) {
   if (!isoStr) return 'N/A';
   try {
     const d = new Date(isoStr);
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (isNaN(d.getTime())) return isoStr;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   } catch (e) {
     return isoStr;
   }
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/[&<>"']/g, function(m) {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
-  });
-}
-
 function getFormattedDateStamp() {
   const d = new Date();
-  return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

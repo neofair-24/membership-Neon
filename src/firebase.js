@@ -1,10 +1,6 @@
 // ================================================
 // Firebase Configuration — NeoFair Salon
-// ================================================
-// Replace the placeholder values below with your
-// actual Firebase project credentials from:
-// https://console.firebase.google.com
-// → Your Project → Project Settings → Your Apps → SDK setup
+// Cloud Firestore Real-Time Database Manager
 // ================================================
 
 import { initializeApp } from 'firebase/app';
@@ -36,13 +32,11 @@ isSupported().then((supported) => {
 }).catch(() => {});
 
 /**
- * Save a new member to Firestore "members" collection with local storage fallback
+ * Save a new member to Firestore "members" collection with local storage sync
  * @param {{ fullName: string, phoneNumber: string, dateOfBirth: string, gender: string, membershipId: string, registrationDate: string }} memberData
- * @returns {Promise<string>} The new document ID or fallback ID
+ * @returns {Promise<string>} The new document ID
  */
 export async function saveMember(memberData) {
-  const localId = saveToLocalStorage(memberData);
-
   try {
     const docRef = await addDoc(collection(db, 'members'), {
       ...memberData,
@@ -50,8 +44,13 @@ export async function saveMember(memberData) {
       membershipTier: memberData.membershipTier || 'Neon',
       status: memberData.status || 'active',
     });
+    
+    // Save locally with Firestore document ID
+    saveToLocalStorage({ ...memberData, id: docRef.id, firestoreId: docRef.id });
     return docRef.id;
   } catch (err) {
+    // Offline fallback
+    const localId = saveToLocalStorage(memberData);
     return localId;
   }
 }
@@ -60,7 +59,8 @@ function saveToLocalStorage(memberData) {
   try {
     const existing = JSON.parse(localStorage.getItem('neofair_members') || '[]');
     const newMember = {
-      id: memberData.id || 'mem_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      id: memberData.id || memberData.firestoreId || 'mem_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      firestoreId: memberData.firestoreId || memberData.id,
       ...memberData,
       joinedAt: memberData.registrationDate || new Date().toISOString(),
       membershipTier: memberData.membershipTier || 'Neon',
@@ -81,16 +81,7 @@ function saveToLocalStorage(memberData) {
 export async function getMembers() {
   const memberMap = new Map();
 
-  // 1. Fetch from LocalStorage
-  try {
-    const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
-    local.forEach(item => {
-      const key = item.membershipId || item.id || item.phoneNumber;
-      if (key) memberMap.set(key, item);
-    });
-  } catch (e) {}
-
-  // 2. Fetch from Firestore (if accessible)
+  // 1. Fetch from Firestore first (Source of Truth)
   try {
     const q = query(collection(db, 'members'), orderBy('joinedAt', 'desc'));
     const snapshot = await getDocs(q);
@@ -98,6 +89,7 @@ export async function getMembers() {
       const data = docSnap.data();
       const item = {
         id: docSnap.id,
+        firestoreId: docSnap.id,
         fullName: data.fullName || data.name || 'Anonymous',
         phoneNumber: data.phoneNumber || data.phone || 'N/A',
         dateOfBirth: data.dateOfBirth || data.dob || 'N/A',
@@ -107,11 +99,21 @@ export async function getMembers() {
         membershipTier: data.membershipTier || 'Neon',
         status: data.status || 'active',
       };
-      const key = item.membershipId || item.id || item.phoneNumber;
+      const key = item.firestoreId || item.membershipId || item.id;
       memberMap.set(key, item);
     });
+
+    // Mirror Firestore documents to LocalStorage
+    localStorage.setItem('neofair_members', JSON.stringify(Array.from(memberMap.values())));
   } catch (e) {
-    // Firestore rules or offline fallback
+    // Firestore rules or offline fallback: read from LocalStorage
+    try {
+      const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
+      local.forEach(item => {
+        const key = item.firestoreId || item.membershipId || item.id || item.phoneNumber;
+        if (key) memberMap.set(key, item);
+      });
+    } catch (err) {}
   }
 
   // Convert map to array
@@ -135,7 +137,7 @@ export async function updateMember(memberId, updatedFields) {
   try {
     const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
     const updated = local.map(m => {
-      if (m.id === memberId || m.membershipId === memberId) {
+      if (m.id === memberId || m.firestoreId === memberId || m.membershipId === memberId) {
         return { ...m, ...updatedFields };
       }
       return m;
@@ -158,40 +160,67 @@ export async function updateMember(memberId, updatedFields) {
 
 /**
  * Delete member record by Doc ID, Membership ID, or Phone Number
- * @param {string} memberId 
+ * Guarantees deletion in Cloud Firestore and LocalStorage
+ * @param {string|Object} target 
  */
-export async function deleteMember(memberId) {
-  if (!memberId) return;
+export async function deleteMember(target) {
+  if (!target) return;
 
-  // 1. Delete from LocalStorage
+  const targetId = typeof target === 'object' ? (target.firestoreId || target.id) : target;
+  const targetMembershipId = typeof target === 'object' ? target.membershipId : target;
+  const targetPhone = typeof target === 'object' ? target.phoneNumber : target;
+
+  // 1. Delete from Cloud Firestore by Direct Doc ID
+  if (targetId && !targetId.startsWith('mem_')) {
+    try {
+      await deleteDoc(doc(db, 'members', targetId));
+    } catch (e) {}
+  }
+
+  // 2. Query Firestore by Membership ID
+  if (targetMembershipId) {
+    try {
+      const q1 = query(collection(db, 'members'), where('membershipId', '==', targetMembershipId));
+      const snaps1 = await getDocs(q1);
+      for (const d of snaps1.docs) {
+        try { await deleteDoc(d.ref); } catch (err) {}
+      }
+    } catch (e) {}
+  }
+
+  // 3. Query Firestore by Phone Number
+  if (targetPhone && targetPhone.length === 10) {
+    try {
+      const q2 = query(collection(db, 'members'), where('phoneNumber', '==', targetPhone));
+      const snaps2 = await getDocs(q2);
+      for (const d of snaps2.docs) {
+        try { await deleteDoc(d.ref); } catch (err) {}
+      }
+    } catch (e) {}
+  }
+
+  // 4. Delete from LocalStorage
   try {
     const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
-    const filtered = local.filter(m => m.id !== memberId && m.membershipId !== memberId && m.phoneNumber !== memberId);
+    const filtered = local.filter(m => 
+      m.id !== targetId && 
+      m.firestoreId !== targetId && 
+      m.membershipId !== targetMembershipId && 
+      m.phoneNumber !== targetPhone
+    );
     localStorage.setItem('neofair_members', JSON.stringify(filtered));
   } catch (e) {}
+}
 
-  // 2. Delete from Firestore by Direct Doc ID
-  try {
-    await deleteDoc(doc(db, 'members', memberId));
-  } catch (e) {}
-
-  // 3. Delete from Firestore by Membership ID (in case memberId is membershipId)
-  try {
-    const q1 = query(collection(db, 'members'), where('membershipId', '==', memberId));
-    const snaps1 = await getDocs(q1);
-    snaps1.forEach(async (d) => {
-      try { await deleteDoc(d.ref); } catch (err) {}
-    });
-  } catch (e) {}
-
-  // 4. Delete from Firestore by Phone Number
-  try {
-    const q2 = query(collection(db, 'members'), where('phoneNumber', '==', memberId));
-    const snaps2 = await getDocs(q2);
-    snaps2.forEach(async (d) => {
-      try { await deleteDoc(d.ref); } catch (err) {}
-    });
-  } catch (e) {}
+/**
+ * Delete multiple selected members from Cloud Firestore and LocalStorage
+ * @param {Array<string|Object>} targets 
+ */
+export async function deleteMultipleMembers(targets) {
+  if (!targets || !targets.length) return;
+  for (const target of targets) {
+    await deleteMember(target);
+  }
 }
 
 /**
@@ -209,6 +238,7 @@ export async function isPhoneRegistered(phone) {
 
 /**
  * Subscribe to real-time changes in Firestore "members" collection
+ * Automatically updates admin view when changes occur in Firebase Console
  * @param {Function} callback Function called with updated member array
  * @returns {Function} Unsubscribe function
  */
@@ -221,6 +251,7 @@ export function subscribeMembers(callback) {
         const data = docSnap.data();
         firestoreMembers.push({
           id: docSnap.id,
+          firestoreId: docSnap.id,
           fullName: data.fullName || data.name || 'Anonymous',
           phoneNumber: data.phoneNumber || data.phone || 'N/A',
           dateOfBirth: data.dateOfBirth || data.dob || 'N/A',
@@ -232,24 +263,15 @@ export function subscribeMembers(callback) {
         });
       });
 
-      // Synchronize with LocalStorage
+      // Synchronize LocalStorage with latest Firestore state
       const memberMap = new Map();
       firestoreMembers.forEach(item => {
-        const key = item.membershipId || item.id || item.phoneNumber;
+        const key = item.firestoreId || item.membershipId || item.id;
         memberMap.set(key, item);
       });
 
-      // Keep offline fallback entries
+      // Overwrite LocalStorage so deleted documents in Firebase Console disappear immediately
       try {
-        const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
-        local.forEach(item => {
-          const key = item.membershipId || item.id || item.phoneNumber;
-          if (key && !memberMap.has(key) && item.id && item.id.startsWith('local_')) {
-            memberMap.set(key, item);
-          }
-        });
-        
-        // Sync local storage so deleted Firestore docs are also removed locally
         localStorage.setItem('neofair_members', JSON.stringify(Array.from(memberMap.values())));
       } catch (e) {}
 
@@ -275,5 +297,3 @@ export function subscribeMembers(callback) {
 export async function clearAllMembers() {
   localStorage.setItem('neofair_members', JSON.stringify([]));
 }
-
-
