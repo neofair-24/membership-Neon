@@ -855,27 +855,99 @@ function openEditMemberModal(member) {
 }
 
 async function handleDeleteMember(id) {
-  const targetMember = currentMembers.find(m => m.id === id || m.firestoreId === id || m.membershipId === id) || id;
-  await deleteMember(targetMember);
+  // Find full member object so Firestore gets docId, membershipId & phoneNumber
+  const targetMember = currentMembers.find(m => m.firestoreId === id || m.id === id || m.membershipId === id);
 
-  currentMembers = currentMembers.filter(m => m.id !== id && m.firestoreId !== id && m.membershipId !== id);
+  if (!targetMember) {
+    showToast(`⚠️ Member not found for id: ${id}`, 'error');
+    return;
+  }
+
+  showToast(`🔥 Deleting from Firestore: ${targetMember.firestoreId || id}…`, 'info');
+
+  const success = await deleteMember(targetMember);
+
+  if (success) {
+    showToast(`✅ Deleted: ${targetMember.fullName}`, 'success');
+  } else {
+    showToast(`❌ Firestore delete failed for ${targetMember.fullName}. Check Rules.`, 'error');
+  }
+
+  currentMembers = currentMembers.filter(m =>
+    m.firestoreId !== id && m.id !== id && m.membershipId !== id
+  );
   selectedMemberIds.delete(id);
   updateMetricsCards(currentMembers);
   filterAndRenderTable();
 }
 
 async function handleDeleteSelected() {
-  const targets = Array.from(selectedMemberIds).map(id => 
-    currentMembers.find(m => m.id === id || m.firestoreId === id || m.membershipId === id) || id
+  const targets = Array.from(selectedMemberIds).map(id =>
+    currentMembers.find(m => m.firestoreId === id || m.id === id || m.membershipId === id) || { id }
   );
 
+  showToast(`🔥 Deleting ${targets.length} records from Firestore…`, 'info');
   await deleteMultipleMembers(targets);
+  showToast(`✅ ${targets.length} records deleted from Firestore`, 'success');
 
   const idSet = new Set(selectedMemberIds);
-  currentMembers = currentMembers.filter(m => !idSet.has(m.id) && !idSet.has(m.firestoreId) && !idSet.has(m.membershipId));
+  currentMembers = currentMembers.filter(m =>
+    !idSet.has(m.firestoreId) && !idSet.has(m.id) && !idSet.has(m.membershipId)
+  );
   selectedMemberIds.clear();
   updateMetricsCards(currentMembers);
   filterAndRenderTable();
+}
+
+/**
+ * Show a temporary toast notification
+ */
+function showToast(message, type = 'info') {
+  let container = document.getElementById('nf-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'nf-toast-container';
+    container.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:10px;pointer-events:none;';
+    document.body.appendChild(container);
+  }
+
+  const colors = {
+    info: '#3b82f6',
+    success: '#22c55e',
+    error: '#ef4444'
+  };
+
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    background: #1a1a2e;
+    border: 1px solid ${colors[type] || colors.info};
+    color: #f0f0f0;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    max-width: 380px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    animation: slideInToast 0.3s ease;
+    pointer-events: all;
+    border-left: 4px solid ${colors[type] || colors.info};
+  `;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  // Add animation keyframes once
+  if (!document.getElementById('nf-toast-style')) {
+    const style = document.createElement('style');
+    style.id = 'nf-toast-style';
+    style.textContent = '@keyframes slideInToast{from{opacity:0;transform:translateX(50px)}to{opacity:1;transform:translateX(0)}}';
+    document.head.appendChild(style);
+  }
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.4s';
+    setTimeout(() => toast.remove(), 400);
+  }, type === 'error' ? 5000 : 3000);
 }
 
 /**

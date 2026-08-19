@@ -4,7 +4,21 @@
 // ================================================
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+  setDoc,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  serverTimestamp
+} from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -31,10 +45,13 @@ isSupported().then((supported) => {
   }
 }).catch(() => {});
 
+// ─── Internal log helper (silenced in production via anti-inspector) ───
+function _log(...args) {
+  try { (window.__nfLog || Function.prototype)(...args); } catch (_) {}
+}
+
 /**
  * Save a new member to Firestore "members" collection with local storage sync
- * @param {{ fullName: string, phoneNumber: string, dateOfBirth: string, gender: string, membershipId: string, registrationDate: string }} memberData
- * @returns {Promise<string>} The new document ID
  */
 export async function saveMember(memberData) {
   try {
@@ -44,12 +61,10 @@ export async function saveMember(memberData) {
       membershipTier: memberData.membershipTier || 'Neon',
       status: memberData.status || 'active',
     });
-    
-    // Save locally with Firestore document ID
     saveToLocalStorage({ ...memberData, id: docRef.id, firestoreId: docRef.id });
     return docRef.id;
   } catch (err) {
-    // Offline fallback
+    _log('saveMember error', err);
     const localId = saveToLocalStorage(memberData);
     return localId;
   }
@@ -76,12 +91,10 @@ function saveToLocalStorage(memberData) {
 
 /**
  * Fetch all registered members from Firestore and LocalStorage fallback
- * @returns {Promise<Array<Object>>} Merged array of member records
  */
 export async function getMembers() {
   const memberMap = new Map();
 
-  // 1. Fetch from Firestore first (Source of Truth)
   try {
     const q = query(collection(db, 'members'), orderBy('joinedAt', 'desc'));
     const snapshot = await getDocs(q);
@@ -99,41 +112,30 @@ export async function getMembers() {
         membershipTier: data.membershipTier || 'Neon',
         status: data.status || 'active',
       };
-      const key = item.firestoreId || item.membershipId || item.id;
-      memberMap.set(key, item);
+      memberMap.set(docSnap.id, item);
     });
-
-    // Mirror Firestore documents to LocalStorage
     localStorage.setItem('neofair_members', JSON.stringify(Array.from(memberMap.values())));
   } catch (e) {
-    // Firestore rules or offline fallback: read from LocalStorage
+    _log('getMembers Firestore error, falling back to localStorage', e);
     try {
       const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
       local.forEach(item => {
-        const key = item.firestoreId || item.membershipId || item.id || item.phoneNumber;
+        const key = item.firestoreId || item.id || item.membershipId || item.phoneNumber;
         if (key) memberMap.set(key, item);
       });
     } catch (err) {}
   }
 
-  // Convert map to array
-  const membersList = Array.from(memberMap.values());
-
-  // Sort descending by registration date
-  return membersList.sort((a, b) => {
-    const dateA = new Date(a.registrationDate || a.joinedAt || 0);
-    const dateB = new Date(b.registrationDate || b.joinedAt || 0);
-    return dateB - dateA;
+  return Array.from(memberMap.values()).sort((a, b) => {
+    return new Date(b.registrationDate || b.joinedAt || 0) - new Date(a.registrationDate || a.joinedAt || 0);
   });
 }
 
 /**
  * Update member record in Firestore and LocalStorage
- * @param {string} memberId Document ID or MembershipId
- * @param {Object} updatedFields Fields to update
  */
 export async function updateMember(memberId, updatedFields) {
-  // Update LocalStorage
+  // Update LocalStorage first
   try {
     const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
     const updated = local.map(m => {
@@ -145,111 +147,135 @@ export async function updateMember(memberId, updatedFields) {
     localStorage.setItem('neofair_members', JSON.stringify(updated));
   } catch (e) {}
 
-  // Update Firestore
+  // Update Firestore — memberId here is the Firestore doc ID
   try {
-    const docRef = doc(db, 'members', memberId);
-    await updateDoc(docRef, updatedFields);
+    await updateDoc(doc(db, 'members', memberId), updatedFields);
   } catch (e) {
-    // Fallback try setDoc with merge if doc does not exist
+    _log('updateMember error', e);
     try {
-      const docRef = doc(db, 'members', memberId);
-      await setDoc(docRef, updatedFields, { merge: true });
+      await setDoc(doc(db, 'members', memberId), updatedFields, { merge: true });
     } catch (err) {}
   }
 }
 
 /**
- * Delete member record by Doc ID, Membership ID, or Phone Number
- * Guarantees deletion in Cloud Firestore and LocalStorage
- * @param {string|Object} target 
+ * ✅ FIXED: Delete member record from Cloud Firestore by Firestore Document ID
+ * Accepts either a member object { id, firestoreId, membershipId, phoneNumber }
+ * or a plain string (Firestore doc ID)
  */
 export async function deleteMember(target) {
   if (!target) return;
 
-  const targetId = typeof target === 'object' ? (target.firestoreId || target.id) : target;
-  const targetMembershipId = typeof target === 'object' ? target.membershipId : target;
-  const targetPhone = typeof target === 'object' ? target.phoneNumber : target;
+  // Resolve the Firestore document ID
+  const firestoreDocId = typeof target === 'object'
+    ? (target.firestoreId || target.id)
+    : target;
 
-  // 1. Delete from Cloud Firestore by Direct Doc ID
-  if (targetId && !targetId.startsWith('mem_')) {
+  const membershipId = typeof target === 'object' ? target.membershipId : null;
+  const phoneNumber  = typeof target === 'object' ? target.phoneNumber : null;
+
+  let deletedFromFirestore = false;
+
+  // STEP 1: Try direct doc delete by Firestore document ID (fastest & most reliable)
+  if (firestoreDocId && !firestoreDocId.startsWith('mem_')) {
     try {
-      await deleteDoc(doc(db, 'members', targetId));
-    } catch (e) {}
+      await deleteDoc(doc(db, 'members', firestoreDocId));
+      _log('✅ Deleted from Firestore by docId:', firestoreDocId);
+      deletedFromFirestore = true;
+    } catch (err) {
+      _log('⚠️ Direct deleteDoc failed:', err.code, err.message);
+    }
   }
 
-  // 2. Query Firestore by Membership ID
-  if (targetMembershipId) {
+  // STEP 2: Fallback — query by membershipId if direct delete failed
+  if (!deletedFromFirestore && membershipId) {
     try {
-      const q1 = query(collection(db, 'members'), where('membershipId', '==', targetMembershipId));
-      const snaps1 = await getDocs(q1);
-      for (const d of snaps1.docs) {
-        try { await deleteDoc(d.ref); } catch (err) {}
+      const q = query(collection(db, 'members'), where('membershipId', '==', membershipId));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(d.ref);
+        _log('✅ Deleted from Firestore by membershipId:', membershipId, 'docId:', d.id);
+        deletedFromFirestore = true;
       }
-    } catch (e) {}
+    } catch (err) {
+      _log('⚠️ Delete by membershipId failed:', err.code, err.message);
+    }
   }
 
-  // 3. Query Firestore by Phone Number
-  if (targetPhone && targetPhone.length === 10) {
+  // STEP 3: Fallback — query by phoneNumber if still not deleted
+  if (!deletedFromFirestore && phoneNumber && /^[6-9]\d{9}$/.test(phoneNumber)) {
     try {
-      const q2 = query(collection(db, 'members'), where('phoneNumber', '==', targetPhone));
-      const snaps2 = await getDocs(q2);
-      for (const d of snaps2.docs) {
-        try { await deleteDoc(d.ref); } catch (err) {}
+      const q = query(collection(db, 'members'), where('phoneNumber', '==', phoneNumber));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(d.ref);
+        _log('✅ Deleted from Firestore by phoneNumber:', phoneNumber, 'docId:', d.id);
+        deletedFromFirestore = true;
       }
-    } catch (e) {}
+    } catch (err) {
+      _log('⚠️ Delete by phoneNumber failed:', err.code, err.message);
+    }
   }
 
-  // 4. Delete from LocalStorage
+  if (!deletedFromFirestore) {
+    _log('❌ Could not delete from Firestore. target was:', target);
+  }
+
+  // STEP 4: Always remove from LocalStorage regardless
   try {
     const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
-    const filtered = local.filter(m => 
-      m.id !== targetId && 
-      m.firestoreId !== targetId && 
-      m.membershipId !== targetMembershipId && 
-      m.phoneNumber !== targetPhone
+    const filtered = local.filter(m =>
+      m.id !== firestoreDocId &&
+      m.firestoreId !== firestoreDocId &&
+      (membershipId ? m.membershipId !== membershipId : true) &&
+      (phoneNumber ? m.phoneNumber !== phoneNumber : true)
     );
     localStorage.setItem('neofair_members', JSON.stringify(filtered));
   } catch (e) {}
+
+  return deletedFromFirestore;
 }
 
 /**
  * Delete multiple selected members from Cloud Firestore and LocalStorage
- * @param {Array<string|Object>} targets 
  */
 export async function deleteMultipleMembers(targets) {
   if (!targets || !targets.length) return;
-  for (const target of targets) {
-    await deleteMember(target);
-  }
+  const results = await Promise.allSettled(targets.map(t => deleteMember(t)));
+  _log('deleteMultipleMembers results:', results);
 }
 
 /**
  * Check if a mobile phone number is already registered
- * @param {string} phone 
- * @returns {Promise<boolean>}
  */
 export async function isPhoneRegistered(phone) {
   const cleanPhone = (phone || '').trim();
   if (!cleanPhone) return false;
 
-  const members = await getMembers();
-  return members.some(m => (m.phoneNumber || '').trim() === cleanPhone);
+  // Check Firestore directly for most up-to-date result
+  try {
+    const q = query(collection(db, 'members'), where('phoneNumber', '==', cleanPhone));
+    const snap = await getDocs(q);
+    return !snap.empty;
+  } catch (e) {
+    // Fallback to local check
+    const members = await getMembers();
+    return members.some(m => (m.phoneNumber || '').trim() === cleanPhone);
+  }
 }
 
 /**
  * Subscribe to real-time changes in Firestore "members" collection
  * Automatically updates admin view when changes occur in Firebase Console
- * @param {Function} callback Function called with updated member array
- * @returns {Function} Unsubscribe function
  */
 export function subscribeMembers(callback) {
   try {
     const q = query(collection(db, 'members'), orderBy('joinedAt', 'desc'));
     return onSnapshot(q, (snapshot) => {
-      const firestoreMembers = [];
+      const members = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        firestoreMembers.push({
+        members.push({
           id: docSnap.id,
           firestoreId: docSnap.id,
           fullName: data.fullName || data.name || 'Anonymous',
@@ -263,30 +289,18 @@ export function subscribeMembers(callback) {
         });
       });
 
-      // Synchronize LocalStorage with latest Firestore state
-      const memberMap = new Map();
-      firestoreMembers.forEach(item => {
-        const key = item.firestoreId || item.membershipId || item.id;
-        memberMap.set(key, item);
-      });
-
-      // Overwrite LocalStorage so deleted documents in Firebase Console disappear immediately
+      // Overwrite LocalStorage so Firebase Console deletions are reflected immediately
       try {
-        localStorage.setItem('neofair_members', JSON.stringify(Array.from(memberMap.values())));
+        localStorage.setItem('neofair_members', JSON.stringify(members));
       } catch (e) {}
 
-      const sortedList = Array.from(memberMap.values()).sort((a, b) => {
-        const dateA = new Date(a.registrationDate || a.joinedAt || 0);
-        const dateB = new Date(b.registrationDate || b.joinedAt || 0);
-        return dateB - dateA;
-      });
-
-      callback(sortedList);
+      callback(members);
     }, (error) => {
-      // On error fallback to getMembers
+      _log('subscribeMembers error:', error.code, error.message);
       getMembers().then(callback);
     });
   } catch (err) {
+    _log('subscribeMembers init error:', err);
     return () => {};
   }
 }
