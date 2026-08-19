@@ -234,9 +234,17 @@ export function initJoinForm() {
     setError('group-name', 'err-name', !nameOk);
     if (!nameOk) valid = false;
 
-    // Mobile Phone — strictly 10 digits
-    const phoneOk = /^[0-9]{10}$/.test(phone);
+    // Mobile Phone — strictly 10 digits starting with 6, 7, 8, or 9
+    const phoneOk = /^[6-9][0-9]{9}$/.test(phone);
     setError('group-phone', 'err-phone', !phoneOk);
+    const errPhone = document.getElementById('err-phone');
+    if (!phoneOk && errPhone) {
+      if (phone.length > 0 && !/^[6-9]/.test(phone)) {
+        errPhone.textContent = 'Mobile number must start with 6, 7, 8, or 9.';
+      } else {
+        errPhone.textContent = 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.';
+      }
+    }
     if (!phoneOk) valid = false;
 
     // Date of Birth

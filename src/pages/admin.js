@@ -4,7 +4,7 @@
 // ================================================================
 
 import { loginAdmin, logoutAdmin, isAdminAuthenticated, changeAdminCredentials, checkLockoutStatus, getRemainingAttempts, getStoredAdminId, MAX_ATTEMPTS } from '../utils/auth.js';
-import { getMembers, saveMember, updateMember, deleteMember, clearAllMembers, isPhoneRegistered } from '../firebase.js';
+import { getMembers, saveMember, updateMember, deleteMember, clearAllMembers, isPhoneRegistered, subscribeMembers } from '../firebase.js';
 import { encryptData } from '../utils/crypto.js';
 
 let currentMembers = [];
@@ -400,6 +400,24 @@ function renderDashboardScreen() {
       </div>
     </div>
 
+    <!-- Modal 4: Custom Delete Confirmation Modal -->
+    <div id="deleteConfirmModal" class="admin-modal-overlay" style="display:none;">
+      <div class="admin-modal-content glass-panel" style="max-width:440px;text-align:center;">
+        <div style="font-size:2.8rem;margin-bottom:0.75rem;">🗑️</div>
+        <h3 style="color:var(--color-gold-light);margin-bottom:0.5rem;font-size:1.3rem;">Delete Member Record?</h3>
+        <p style="color:var(--color-text-muted);font-size:0.95rem;line-height:1.5;margin-bottom:1.5rem;" id="deleteConfirmPromptText">
+          Are you sure you want to permanently delete this member record from Firebase Firestore?
+        </p>
+        <input type="hidden" id="deleteTargetId" />
+        <div class="modal-footer" style="justify-content:center;gap:1rem;">
+          <button type="button" class="btn btn-outline" data-close="deleteConfirmModal">Cancel</button>
+          <button type="button" id="confirmDeleteBtn" class="btn" style="background:#ef4444;color:#fff;border:1px solid #dc2626;">
+            Yes, Delete Permanently
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Printable Header (Only visible during print) -->
     <div id="printOnlyHeader" class="print-only">
       <div class="print-logo">NEOFAIR BEAUTY SALON & AESTHETICS</div>
@@ -532,8 +550,13 @@ function startLockoutCountdownMonitor() {
  * Dashboard Screen Logic
  */
 async function initDashboardEvents() {
-  // 1. Fetch member data
+  // 1. Fetch initial member data & Subscribe to real-time 2-way Firestore sync
   await loadMemberData();
+  subscribeMembers((members) => {
+    currentMembers = members;
+    updateMetricsCards(currentMembers);
+    filterAndRenderTable();
+  });
 
   // 2. Attach Search, Filter & Sort listeners
   const searchInput = document.getElementById('memberSearchInput');
@@ -700,11 +723,20 @@ function renderTableRows(members) {
   tbody.querySelectorAll('[data-del-id]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const delId = e.currentTarget.getAttribute('data-del-id');
-      if (confirm(`Are you sure you want to delete member record ${delId}?`)) {
-        handleDeleteMember(delId);
-      }
+      const targetMember = currentMembers.find(m => m.id === delId || m.membershipId === delId);
+      openDeleteConfirmModal(delId, targetMember?.fullName || delId);
     });
   });
+}
+
+function openDeleteConfirmModal(id, name) {
+  const modal = document.getElementById('deleteConfirmModal');
+  const input = document.getElementById('deleteTargetId');
+  const prompt = document.getElementById('deleteConfirmPromptText');
+  if (!modal) return;
+  if (input) input.value = id;
+  if (prompt) prompt.textContent = `Are you sure you want to permanently delete member record for "${name}" from Firebase Firestore?`;
+  modal.style.display = 'flex';
 }
 
 function openEditMemberModal(member) {
@@ -724,6 +756,10 @@ function openEditMemberModal(member) {
 
 async function handleDeleteMember(id) {
   await deleteMember(id);
+  // Optimistically remove from local state immediately
+  currentMembers = currentMembers.filter(m => m.id !== id && m.membershipId !== id);
+  updateMetricsCards(currentMembers);
+  filterAndRenderTable();
   await loadMemberData();
 }
 
@@ -840,6 +876,19 @@ function triggerFileDownload(blob, fileName) {
  * Modals Handler (Add Member, Edit Member, & Security Settings)
  */
 function initModalListeners() {
+  // Handle Delete Confirmation
+  const confirmDelBtn = document.getElementById('confirmDeleteBtn');
+  if (confirmDelBtn) {
+    confirmDelBtn.addEventListener('click', async () => {
+      const targetId = document.getElementById('deleteTargetId')?.value;
+      if (targetId) {
+        await handleDeleteMember(targetId);
+      }
+      const modal = document.getElementById('deleteConfirmModal');
+      if (modal) modal.style.display = 'none';
+    });
+  }
+
   // Open Add Member Modal
   const addBtn = document.getElementById('addMemberBtn');
   const addModal = document.getElementById('addMemberModal');
@@ -875,6 +924,11 @@ function initModalListeners() {
       const tier = document.getElementById('addTier')?.value || 'Neon';
 
       if (!name || !phone || !dob) return;
+
+      if (!/^[6-9][0-9]{9}$/.test(phone)) {
+        alert('Mobile number must be 10 digits and start with 6, 7, 8, or 9!');
+        return;
+      }
 
       const isDuplicate = await isPhoneRegistered(phone);
       if (isDuplicate) {
@@ -915,6 +969,11 @@ function initModalListeners() {
         membershipTier: document.getElementById('editTier').value,
         status: document.getElementById('editStatus').value
       };
+
+      if (!/^[6-9][0-9]{9}$/.test(updatedFields.phoneNumber)) {
+        alert('Mobile number must be 10 digits and start with 6, 7, 8, or 9!');
+        return;
+      }
 
       await updateMember(id, updatedFields);
       document.getElementById('editMemberModal').style.display = 'none';

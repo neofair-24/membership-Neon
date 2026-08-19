@@ -8,7 +8,7 @@
 // ================================================
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -157,20 +157,40 @@ export async function updateMember(memberId, updatedFields) {
 }
 
 /**
- * Delete member record by ID or MembershipId
+ * Delete member record by Doc ID, Membership ID, or Phone Number
  * @param {string} memberId 
  */
 export async function deleteMember(memberId) {
-  // Delete from localStorage
+  if (!memberId) return;
+
+  // 1. Delete from LocalStorage
   try {
     const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
-    const filtered = local.filter(m => m.id !== memberId && m.membershipId !== memberId);
+    const filtered = local.filter(m => m.id !== memberId && m.membershipId !== memberId && m.phoneNumber !== memberId);
     localStorage.setItem('neofair_members', JSON.stringify(filtered));
   } catch (e) {}
 
-  // Delete from Firestore
+  // 2. Delete from Firestore by Direct Doc ID
   try {
     await deleteDoc(doc(db, 'members', memberId));
+  } catch (e) {}
+
+  // 3. Delete from Firestore by Membership ID (in case memberId is membershipId)
+  try {
+    const q1 = query(collection(db, 'members'), where('membershipId', '==', memberId));
+    const snaps1 = await getDocs(q1);
+    snaps1.forEach(async (d) => {
+      try { await deleteDoc(d.ref); } catch (err) {}
+    });
+  } catch (e) {}
+
+  // 4. Delete from Firestore by Phone Number
+  try {
+    const q2 = query(collection(db, 'members'), where('phoneNumber', '==', memberId));
+    const snaps2 = await getDocs(q2);
+    snaps2.forEach(async (d) => {
+      try { await deleteDoc(d.ref); } catch (err) {}
+    });
   } catch (e) {}
 }
 
@@ -188,11 +208,72 @@ export async function isPhoneRegistered(phone) {
 }
 
 /**
+ * Subscribe to real-time changes in Firestore "members" collection
+ * @param {Function} callback Function called with updated member array
+ * @returns {Function} Unsubscribe function
+ */
+export function subscribeMembers(callback) {
+  try {
+    const q = query(collection(db, 'members'), orderBy('joinedAt', 'desc'));
+    return onSnapshot(q, (snapshot) => {
+      const firestoreMembers = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        firestoreMembers.push({
+          id: docSnap.id,
+          fullName: data.fullName || data.name || 'Anonymous',
+          phoneNumber: data.phoneNumber || data.phone || 'N/A',
+          dateOfBirth: data.dateOfBirth || data.dob || 'N/A',
+          gender: data.gender || 'Not specified',
+          membershipId: data.membershipId || `NEON-${docSnap.id.slice(0, 6)}`,
+          registrationDate: data.registrationDate || (data.joinedAt?.toDate ? data.joinedAt.toDate().toISOString() : new Date().toISOString()),
+          membershipTier: data.membershipTier || 'Neon',
+          status: data.status || 'active',
+        });
+      });
+
+      // Synchronize with LocalStorage
+      const memberMap = new Map();
+      firestoreMembers.forEach(item => {
+        const key = item.membershipId || item.id || item.phoneNumber;
+        memberMap.set(key, item);
+      });
+
+      // Keep offline fallback entries
+      try {
+        const local = JSON.parse(localStorage.getItem('neofair_members') || '[]');
+        local.forEach(item => {
+          const key = item.membershipId || item.id || item.phoneNumber;
+          if (key && !memberMap.has(key) && item.id && item.id.startsWith('local_')) {
+            memberMap.set(key, item);
+          }
+        });
+        
+        // Sync local storage so deleted Firestore docs are also removed locally
+        localStorage.setItem('neofair_members', JSON.stringify(Array.from(memberMap.values())));
+      } catch (e) {}
+
+      const sortedList = Array.from(memberMap.values()).sort((a, b) => {
+        const dateA = new Date(a.registrationDate || a.joinedAt || 0);
+        const dateB = new Date(b.registrationDate || b.joinedAt || 0);
+        return dateB - dateA;
+      });
+
+      callback(sortedList);
+    }, (error) => {
+      // On error fallback to getMembers
+      getMembers().then(callback);
+    });
+  } catch (err) {
+    return () => {};
+  }
+}
+
+/**
  * Delete all stored members (Admin function)
  */
 export async function clearAllMembers() {
   localStorage.setItem('neofair_members', JSON.stringify([]));
-  // Note: Firestore bulk delete is restricted client-side for safety
 }
 
 
