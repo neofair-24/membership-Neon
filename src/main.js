@@ -6,21 +6,18 @@ import './style.css';
 import { renderHome }       from './pages/home.js';
 import { renderMembership } from './pages/membership.js';
 import { renderJoin, initJoinForm } from './pages/join.js';
+import { renderAdmin, initAdmin }   from './pages/admin.js';
+import { initAntiInspector } from './utils/antiInspector.js';
 
-// Silence console output in production to protect member data from DevTools inspection
-if (import.meta.env.PROD) {
-  console.log = () => {};
-  console.warn = () => {};
-  console.error = () => {};
-  console.info = () => {};
-  console.debug = () => {};
-}
+// Activate Anti-Inspector Shield (disables console logging, right-click, F12, DevTools shortcuts)
+initAntiInspector();
 
 // ---- Router ----
 const routes = {
   '/':           { render: renderHome,       title: 'Neofair — Premium Beauty Salon',            init: null },
   '/membership': { render: renderMembership, title: 'Membership Privileges — Neofair',            init: null },
   '/join':       { render: renderJoin,       title: 'Join Membership — Neofair',                  init: initJoinForm },
+  '/admin':      { render: renderAdmin,      title: 'Admin Portal — Neofair',                     init: initAdmin },
 };
 
 function getRoute(path) {

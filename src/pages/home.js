@@ -39,10 +39,10 @@ export function renderHome() {
         <!-- 3. Vertical Buttons below -->
         <div class="hero-actions">
           <a href="/join" class="btn btn-primary" data-link>
-            ✦ Join Neon Membership
+            ✦ Join Membership
           </a>
-          <a href="/membership" class="btn btn-outline" data-link>
-            Explore Privileges
+          <a href="tel:7448668744" class="btn btn-outline">
+            📞 Call: +91 74486 68744
           </a>
         </div>
       </div>
@@ -100,8 +100,58 @@ export function renderHome() {
             reserved only for our cherished Neon members.
           </p>
           <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:2rem">
-            <a href="/join" class="btn btn-primary" data-link>✦ Join Neon Membership</a>
+            <a href="/join" class="btn btn-primary" data-link>✦ Join Membership</a>
             <a href="/membership" class="btn btn-ghost" data-link>See All Privileges</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOCATION & MAP SECTION -->
+    <section class="location-section" style="padding:4rem 1.5rem;background:var(--color-bg-2)">
+      <div class="container">
+        <div class="services-header">
+          <span class="section-tag">Visit Our Salon</span>
+          <h2 class="section-title">Location & <span class="highlight">Directions</span></h2>
+          <p class="section-subtitle">
+            Experience luxury beauty treatments at Neofair Salon & Aesthetics in Pallavaram, Chennai.
+          </p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:2rem;align-items:center;margin-top:2rem;">
+          <!-- Address Card -->
+          <div class="glass-panel" style="padding:2rem;">
+            <h3 style="font-family:var(--font-display);color:var(--color-gold-light);margin-bottom:1rem;font-size:1.4rem;">
+              📍 Neofair Salon & Aesthetics
+            </h3>
+            <p style="color:var(--color-text-muted);line-height:1.6;margin-bottom:1.25rem;">
+              <strong>Address:</strong><br/>
+              KFC Upstairs, Vaidhyalingam Complex,<br/>
+              200 feet Radial Road, Thiyagi P.V,<br/>
+              Pallavaram, Chennai, Tamil Nadu 600117
+            </p>
+            <p style="color:var(--color-text-muted);margin-bottom:1.5rem;">
+              <strong>Appointments & Contact:</strong><br/>
+              📞 <a href="tel:7448668744" style="color:var(--color-gold);font-weight:600;">+91 74486 68744</a>
+            </p>
+            <a href="https://www.google.com/maps/search/?api=1&query=Neofair+Salon+KFC+Upstairs+Vaidhyalingam+Complex+200+feet+Radial+Road+Pallavaram+Chennai+600117"
+               target="_blank" rel="noopener" class="btn btn-primary" style="display:inline-flex;">
+              🗺️ Open Directions on Google Maps
+            </a>
+          </div>
+
+          <!-- Google Maps Embed -->
+          <div class="glass-panel" style="overflow:hidden;border-radius:var(--radius-lg);height:360px;">
+            <iframe
+              title="Neofair Salon Location Map"
+              src="https://maps.google.com/maps?q=Neofair+Salon+KFC+Upstairs+Vaidhyalingam+Complex+200+feet+Radial+Road+Pallavaram+Chennai+600117&t=&z=16&ie=UTF8&iwloc=&output=embed"
+              width="100%"
+              height="100%"
+              style="border:0;"
+              allowfullscreen=""
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade">
+            </iframe>
           </div>
         </div>
       </div>

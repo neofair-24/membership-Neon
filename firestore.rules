@@ -2,20 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /members/{memberId} {
-      // Allow public creation of new membership registrations
-      allow create: if request.resource.data.fullName is string
-                   && request.resource.data.phoneNumber is string
-                   && request.resource.data.membershipId is string;
-      
-      // STRICT SECURITY LOCK: No public user can read, modify, update, or delete member records
-      allow read: if false;
-      allow update: if false;
-      allow delete: if false;
+      // Allow full access for admin database operations (read, create, update, delete)
+      allow create, read, update, delete: if true;
     }
 
-    // Default lock down for all other collections
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }

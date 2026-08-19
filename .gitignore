@@ -26,3 +26,11 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Security & Secrets Protection
+.env
+.env.*
+!.env.example
+*.enc
+neofair_members*
+
