@@ -306,11 +306,24 @@ export function initJoinForm() {
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const generatedId = generateMembershipId();
 
+    // ── Security: sanitize text inputs before saving ──────────────────
+    function sanitizeText(str) {
+      return String(str || '').replace(/<[^>]*>/g, '').trim().slice(0, 120);
+    }
+
+    const rawName   = sanitizeText(document.getElementById('memberName').value);
+    const rawPhone  = (document.getElementById('memberPhone').value || '').trim();
+    const rawGender = document.querySelector('input[name="gender"]:checked')?.value || '';
+
+    // Final guard: reject if phone or gender is tampered post-validate
+    if (!/^[6-9][0-9]{9}$/.test(rawPhone)) return;
+    if (!['Female','Male','Other'].includes(rawGender)) return;
+
     const memberData = {
-      fullName:         document.getElementById('memberName').value.trim(),
-      phoneNumber:      document.getElementById('memberPhone').value.trim(),
+      fullName:         rawName,
+      phoneNumber:      rawPhone,
       dateOfBirth:      `${monthNames[parseInt(dobMonth, 10) - 1]} ${parseInt(dobDay, 10)}, ${dobYear}`,
-      gender:           document.querySelector('input[name="gender"]:checked').value,
+      gender:           rawGender,
       membershipId:     generatedId,
       registrationDate: new Date().toISOString(),
     };

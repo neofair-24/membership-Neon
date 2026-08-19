@@ -574,6 +574,112 @@ button {
   padding: 14px 28px;
 }
 
+/* ---- Hero Privileges Preview (below CTA buttons) ---- */
+.hero-privileges {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding: 1.5rem 1.75rem;
+  background: rgba(201,169,110,0.05);
+  border: 1px solid rgba(201,169,110,0.2);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  max-width: 480px;
+  animation: fadeInUp 0.7s ease both;
+}
+
+.hero-privileges-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  opacity: 0.85;
+}
+
+.hero-priv-cards {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.hero-priv-card {
+  flex: 1;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+}
+
+.hero-priv-percent {
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 6vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1;
+  background: var(--grad-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-priv-percent span {
+  font-size: 0.5em;
+  vertical-align: super;
+}
+
+.hero-priv-percent-weekend {
+  background: var(--grad-rose-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-priv-days {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.06em;
+  margin-top: 0.15rem;
+}
+
+.hero-priv-desc {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: 0.1rem;
+}
+
+.hero-priv-divider {
+  width: 1px;
+  height: 60px;
+  background: rgba(201,169,110,0.25);
+  flex-shrink: 0;
+}
+
+.hero-priv-note {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 1.5;
+  margin-top: 0.25rem;
+}
+
+.hero-priv-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-gold);
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: opacity var(--transition-fast);
+}
+
+.hero-priv-link:hover {
+  opacity: 0.75;
+}
+
 .hero-logo-fallback {
   font-family: var(--font-display);
   font-size: 3.5rem;
@@ -2104,8 +2210,20 @@ button {
   .hero-logo-ring:nth-child(2) { width: 270px; height: 270px; }
   .hero-logo-ring:nth-child(3) { display: none; }
 
-  .hero-actions { flex-direction: column; align-items: stretch; width: 100%; max-width: 320px; }
+  .hero-actions { flex-direction: column; align-items: stretch; width: 100%; max-width: 360px; }
   .hero-actions .btn { width: 100%; justify-content: center; }
+
+  /* Hero privileges on mobile */
+  .hero-privileges {
+    max-width: 360px;
+    padding: 1.1rem 1.25rem;
+    gap: 0.6rem;
+    margin-top: 1.25rem;
+  }
+  .hero-priv-percent { font-size: clamp(2rem, 9vw, 2.8rem); }
+  .hero-priv-days { font-size: 0.73rem; }
+  .hero-priv-desc { font-size: 0.68rem; }
+  .hero-priv-note { font-size: 0.68rem; }
 
   /* Sections */
   .services-grid { grid-template-columns: 1fr; gap: var(--space-md); }
@@ -2146,6 +2264,8 @@ button {
   .hero-badge { font-size: 0.72rem; padding: 5px 14px; }
   .gender-group { grid-template-columns: 1fr; }
   .hero-actions .btn { width: 100%; max-width: 100%; }
+  .hero-privileges { max-width: 100%; padding: 1rem 1rem; border-radius: var(--radius-lg); }
+  .hero-priv-percent { font-size: clamp(1.8rem, 10vw, 2.4rem); }
 
   .dob-group {
     grid-template-columns: 1fr 1fr 1fr;

@@ -45,6 +45,26 @@ export function renderHome() {
             📞 Call: +91 74486 68744
           </a>
         </div>
+
+        <!-- 4. Membership Privileges Preview (below call button) -->
+        <div class="hero-privileges">
+          <div class="hero-privileges-label">✦ Neon Member Privileges</div>
+          <div class="hero-priv-cards">
+            <div class="hero-priv-card hero-priv-weekday">
+              <div class="hero-priv-percent">15<span>%</span></div>
+              <div class="hero-priv-days">Mon – Fri</div>
+              <div class="hero-priv-desc">Flat Discount</div>
+            </div>
+            <div class="hero-priv-divider"></div>
+            <div class="hero-priv-card hero-priv-weekend">
+              <div class="hero-priv-percent hero-priv-percent-weekend">10<span>%</span></div>
+              <div class="hero-priv-days">Sat – Sun</div>
+              <div class="hero-priv-desc">Flat Discount</div>
+            </div>
+          </div>
+          <p class="hero-priv-note">On regular Hair &amp; Skin Care services · Valid 1 year · Family eligible</p>
+          <a href="/membership" class="hero-priv-link" data-link>See all privileges →</a>
+        </div>
       </div>
 
       </div>
