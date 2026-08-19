@@ -1,5 +1,5 @@
 // ================================================
-// Firebase Configuration — NeoFair Salon
+// Firebase Configuration — Neofair Salon
 // Cloud Firestore Real-Time Database Manager
 // ================================================
 

@@ -1,5 +1,5 @@
 // ================================================================
-// NeoFair Security Architecture — Admin Authentication Manager
+// Neofair Security Architecture — Admin Authentication Manager
 // Controls login verification, session tokens, brute-force protection
 // GitHub Security: Plaintext credentials do NOT exist in repository code!
 // ================================================================

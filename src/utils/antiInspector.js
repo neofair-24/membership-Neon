@@ -1,5 +1,5 @@
 // ================================================================
-// NeoFair Security System — Anti-DevTools & Inspector Shield
+// Neofair Security System — Anti-DevTools & Inspector Shield
 // Protects application from browser DevTools, code inspection,
 // right-click extraction, and shortcut snooping.
 // ================================================================

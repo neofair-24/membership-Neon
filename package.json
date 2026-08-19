@@ -1,7 +1,7 @@
 {
   "name": "neofair-salon",
   "version": "1.0.0",
-  "description": "NeoFair - Premium Salon Website with Membership",
+  "description": "Neofair - Premium Salon Website with Membership",
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173",

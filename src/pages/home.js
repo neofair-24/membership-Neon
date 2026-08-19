@@ -1,5 +1,5 @@
 // ================================================
-// NeoFair — Home Page
+// Neofair — Home Page
 // ================================================
 
 export function renderHome() {

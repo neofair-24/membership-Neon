@@ -1,4 +1,4 @@
-# NeoFair Salon Website — Task List
+# Neofair Salon Website — Task List
 
 - [x] Review existing project structure
 - [x] Clean project & set up new structure
@@ -6,7 +6,7 @@
   - [x] vite.config.js
   - [x] vercel.json
   - [x] index.html
-- [x] Save NeoFair logo to public/
+- [x] Save Neofair logo to public/
 - [x] src/style.css — full design system
 - [x] src/firebase.js — Firebase + Firestore config
 - [x] src/main.js — SPA router

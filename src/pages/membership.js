@@ -1,5 +1,5 @@
 // ================================================
-// NeoFair — Membership Privileges Page (Neon Membership)
+// Neofair — Membership Privileges Page (Neon Membership)
 // ================================================
 
 export function renderMembership() {

@@ -1,5 +1,5 @@
 // ================================================================
-// NeoFair Security Architecture — Web Crypto API Encrypter & Hasher
+// Neofair Security Architecture — Web Crypto API Encrypter & Hasher
 // Uses native window.crypto.subtle for enterprise-grade security
 // ================================================================
 

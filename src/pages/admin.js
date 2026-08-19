@@ -1,5 +1,5 @@
 // ================================================================
-// NeoFair Salon — Admin Portal & Encrypted Member Management
+// Neofair Salon — Admin Portal & Encrypted Member Management
 // Credentials stored as PBKDF2 hashes only — see src/utils/crypto.js
 // ================================================================
 
@@ -38,7 +38,7 @@ function renderLoginScreen() {
             <span class="admin-lock-icon">🔒</span>
           </div>
           
-          <h2 class="admin-login-title">NeoFair Admin Portal</h2>
+          <h2 class="admin-login-title">Neofair Admin Portal</h2>
           <p class="admin-login-subtitle">PBKDF2 SHA-256 Protected Firebase Access</p>
 
           <!-- Lockout Alert -->

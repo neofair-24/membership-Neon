@@ -1,5 +1,5 @@
 // ================================================
-// NeoFair — Join Membership Page
+// Neofair — Join Membership Page
 // ================================================
 
 import { saveMember, isPhoneRegistered } from '../firebase.js';
