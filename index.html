@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Neofair — Premium Beauty Salon. Experience luxury hair, skin, and wellness treatments. Join our exclusive membership program for VIP privileges." />
+  <meta name="keywords" content="Neofair, beauty salon, hair salon, membership, luxury salon, skin care, wellness" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <!-- Open Graph -->
+  <meta property="og:title" content="Neofair — Premium Beauty Salon" />
+  <meta property="og:description" content="Experience luxury beauty treatments and exclusive membership privileges at Neofair." />
+  <meta property="og:type" content="website" />
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet" />
+  <title>Neofair — Premium Beauty Salon</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+      <div class="nav-container">
+        <a href="/" class="nav-logo" data-link>
+          <img src="/neofair-logo.png" alt="Neofair Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+          <span class="logo-fallback">NEOFAIR</span>
+        </a>
+        <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </button>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="/" class="nav-link" data-link>Home</a></li>
+          <li><a href="/membership" class="nav-link" data-link>Membership Privileges</a></li>
+          <li><a href="/join" class="nav-link nav-cta" data-link>Join Neon Membership</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- Page Content -->
+    <main id="page-content"></main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-container">
+        <div class="footer-brand">
+          <img src="/neofair-logo.png" alt="Neofair" class="footer-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+          <span class="footer-logo-text" style="display:none">NEOFAIR</span>
+          <p class="footer-tagline">Where beauty meets elegance.</p>
+        </div>
+        <div class="footer-links">
+          <h4>Quick Links</h4>
+          <ul>
+            <li><a href="/" data-link>Home</a></li>
+            <li><a href="/membership" data-link>Membership Privileges</a></li>
+            <li><a href="/join" data-link>Join Membership</a></li>
+          </ul>
+        </div>
+        <div class="footer-contact">
+          <h4>Contact</h4>
+          <p>📍 Neofair Salon</p>
+          <p>📞 Call us for appointments</p>
+          <p>✨ Premium beauty services</p>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 Neofair. All rights reserved. Crafted with ✨</p>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
