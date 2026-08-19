@@ -2885,84 +2885,159 @@ button {
    RESPONSIVE ADMIN OVERHAUL (MOBILE & TABLET)
    ========================================= */
 
+/* ── Tablet (≤ 992px) ── */
 @media (max-width: 992px) {
   .admin-dashboard-page {
     padding: 1.25rem 1rem 3rem;
+    overflow-x: hidden;
   }
   .admin-stats-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  .admin-table { min-width: 720px; }
+  .admin-controls-bar {
+    flex-wrap: wrap;
+    gap: 1rem;
   }
 }
 
+/* ── Mobile (≤ 768px) ── */
 @media (max-width: 768px) {
-  .admin-dashboard-page {
-    padding: 1rem 0.75rem 2.5rem;
+  :root { --nav-height: 60px; }
+
+  /* Full-width no overflow */
+  html, body {
+    max-width: 100vw;
     overflow-x: hidden;
   }
 
-  .admin-dashboard-container {
-    gap: 1rem;
+  .admin-dashboard-page {
+    padding: 0.75rem 0.75rem 4rem;
+    overflow-x: hidden;
+    width: 100%;
+    box-sizing: border-box;
   }
 
+  .admin-dashboard-container {
+    gap: 0.85rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* ── Header ── */
   .admin-header {
-    padding: 1.25rem 1rem;
+    padding: 1rem 0.85rem;
     flex-direction: column;
     align-items: stretch;
-    gap: 1rem;
+    gap: 0.85rem;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .admin-header-brand {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
 
   .brand-badge {
     border-right: none;
-    padding-right: 0;
-    font-size: 1.15rem;
+    padding-right: 0.75rem;
+    font-size: 1rem;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .admin-title {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
+    line-height: 1.25;
+  }
+
+  .admin-subtitle {
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
   .admin-header-actions {
     width: 100%;
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 0.5rem;
   }
 
   .admin-header-actions .btn {
     width: 100%;
-    padding: 8px 6px;
+    padding: 9px 8px;
     font-size: 0.78rem;
     justify-content: center;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
+  /* ── Stat Cards ── */
+  .admin-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .stat-card {
+    padding: 0.9rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .stat-icon-wrap {
+    width: 44px;
+    height: 44px;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+  }
+
+  .stat-sub {
+    display: none; /* hide on small screens to save space */
+  }
+
+  /* ── Controls Bar ── */
   .admin-controls-bar {
-    padding: 1rem;
+    padding: 0.85rem 0.85rem;
     flex-direction: column;
     align-items: stretch;
-    gap: 1rem;
+    gap: 0.85rem;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .search-filter-group {
     flex-direction: column;
     width: 100%;
-    gap: 0.75rem;
+    gap: 0.6rem;
+    flex: unset;
   }
 
   .search-box {
     width: 100%;
-    min-width: 100%;
+    min-width: 0;
+    flex: unset;
+  }
+
+  .search-input {
+    width: 100%;
+    font-size: 0.9rem;
+    padding: 10px 12px 10px 36px;
   }
 
   .filter-box, .admin-select {
     width: 100%;
     box-sizing: border-box;
+    font-size: 0.85rem;
   }
 
   .export-actions-group {
@@ -2970,63 +3045,128 @@ button {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.5rem;
+    align-items: center;
   }
 
   .export-label {
     grid-column: 1 / -1;
-    font-size: 0.75rem;
-    margin-bottom: 2px;
+    font-size: 0.72rem;
+    margin-bottom: 0;
   }
 
   .export-actions-group .btn {
     width: 100%;
     justify-content: center;
-    font-size: 0.78rem;
-    padding: 8px 6px;
+    font-size: 0.76rem;
+    padding: 9px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
+  /* ── Table Section ── */
   .admin-table-wrapper {
-    padding: 1rem 0.75rem;
+    padding: 0.85rem 0.75rem;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .table-meta-bar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    margin-bottom: 0.75rem;
   }
 
   .table-responsive {
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    /* Subtle scroll hint */
+    border-radius: var(--radius-sm);
+  }
+
+  /* Horizontal scroll indicator */
+  .table-responsive::after {
+    content: '← scroll →';
+    display: block;
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--color-text-dim);
+    padding: 6px 0;
+    letter-spacing: 0.05em;
   }
 
   .admin-table {
     min-width: 680px;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
+    width: 100%;
   }
 
-  .admin-table th, .admin-table td {
+  .admin-table th {
+    padding: 10px 8px;
+    font-size: 0.72rem;
+  }
+
+  .admin-table td {
     padding: 10px 8px;
   }
-}
 
-@media (max-width: 480px) {
-  .admin-stats-grid {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
+  .member-id-tag {
+    font-size: 0.7rem;
+    padding: 2px 5px;
   }
 
-  .stat-card {
-    padding: 1rem;
+  .badge {
+    font-size: 0.68rem;
+    padding: 2px 7px;
   }
 
-  .stat-icon-wrap {
-    width: 44px;
-    height: 44px;
-    font-size: 1.25rem;
+  .btn-table-edit, .btn-table-del {
+    padding: 5px;
+    font-size: 1rem;
   }
 
-  .stat-value {
-    font-size: 1.5rem;
+  /* ── Modals ── */
+  .admin-modal-overlay {
+    padding: 0.75rem;
+    align-items: flex-end;
   }
 
-  .admin-header-actions {
-    grid-template-columns: 1fr;
+  .admin-modal-content {
+    width: 100%;
+    max-width: 100%;
+    max-height: 88vh;
+    padding: 1.25rem 1rem;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-header h3 {
+    font-size: 1.05rem;
+  }
+
+  .modal-footer {
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  /* ── Login Card ── */
+  .admin-page {
+    padding: 1rem 0.75rem 2rem;
+    align-items: flex-start;
+    padding-top: calc(var(--nav-height) + 1rem);
+  }
+
+  .admin-login-wrapper {
+    max-width: 100%;
   }
 
   .admin-login-card {
@@ -3034,13 +3174,89 @@ button {
   }
 
   .admin-login-title {
-    font-size: 1.4rem;
+    font-size: 1.5rem;
   }
 
-  .admin-modal-content {
-    padding: 1.25rem 1rem;
-    width: 95vw;
+  .login-meta-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .attempts-badge, .sec-badge {
+    font-size: 0.7rem;
+  }
+
+  /* ── General form improvements ── */
+  .form-input, .form-select {
+    font-size: 1rem; /* prevent iOS zoom on focus */
   }
 }
 
+/* ── Small phones (≤ 480px) ── */
+@media (max-width: 480px) {
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
 
+  .stat-card {
+    padding: 0.85rem;
+  }
+
+  .stat-value { font-size: 1.6rem; }
+
+  .admin-header-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-login-card {
+    padding: 1.5rem 1rem;
+  }
+
+  .admin-login-title {
+    font-size: 1.3rem;
+  }
+
+  .admin-modal-content {
+    padding: 1rem 0.85rem;
+  }
+
+  .admin-table {
+    min-width: 600px;
+    font-size: 0.75rem;
+  }
+
+  .export-actions-group {
+    grid-template-columns: 1fr;
+  }
+
+  /* Delete Selected button on mobile */
+  #deleteSelectedBtn {
+    font-size: 0.75rem !important;
+    padding: 7px 12px !important;
+  }
+}
+
+/* ── Very small (≤ 360px) ── */
+@media (max-width: 360px) {
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-table {
+    min-width: 560px;
+    font-size: 0.72rem;
+  }
+
+  .admin-header-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-badge {
+    font-size: 0.85rem;
+  }
+
+  .admin-title {
+    font-size: 0.95rem;
+  }
+}

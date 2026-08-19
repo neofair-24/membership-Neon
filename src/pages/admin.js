@@ -1,6 +1,6 @@
 // ================================================================
 // NeoFair Salon — Admin Portal & Encrypted Member Management
-// Admin ID: indhu | Password: Neofair@2014
+// Credentials stored as PBKDF2 hashes only — see src/utils/crypto.js
 // ================================================================
 
 import { loginAdmin, logoutAdmin, isAdminAuthenticated, changeAdminCredentials, checkLockoutStatus, getRemainingAttempts, getStoredAdminId, MAX_ATTEMPTS } from '../utils/auth.js';
